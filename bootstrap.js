@@ -9,24 +9,33 @@ const self = {
 };
 
 Cu.import('resource://gre/modules/Services.jsm');
+Cu.import('resource:///modules/CustomizableUI.jsm');
+
+const uri_cuiCss =  Services.io.newURI(self.path.chrome + 'cui.css', null, null);
 const ignoreFrames = false;
 const hostPattern = 'youtube.com'; //if a page load matches this host it will inject into it
 //check onStateChange for aRequest.name to have youtube.com in it and for STATE_STOP flag then addDiv
 function addDiv(theDoc) {
 	console.log('addDiv host = ' + theDoc.location.host);
-	if (!theDoc) { console.log('no doc!'); return false; } //document not provided, it is undefined likely
+	if (!theDoc) { console.log('no doc!'); return 0; } //document not provided, it is undefined likely
 	if(!(theDoc.location && theDoc.location.host.indexOf(hostPattern) > -1)) { console.log('location not match host:' + theDoc.location.host); return false; }
 	//if (!theDoc instanceof Ci.nsIDOMHTMLDocument) { console.log('not html doc'); return; } //not html document, so its likely an xul document //you probably dont need this check, checking host is enought
-	console.log('host pass');
+	//console.log('host pass');
+
+	var alreadyThere = theDoc.getElementById(self.id + '.repeat');
+	if (alreadyThere) {
+		console.warn('alreadyThere');
+		return -1;
+	}
 
 	var el_action_bar = theDoc.getElementById('watch8-secondary-actions');
-	if (!el_action_bar) { console.warn('no action bar found'); return false; }
+	if (!el_action_bar) { console.warn('no action bar found'); return 0; }
 	
 	removeDiv(theDoc, true); //remove my div if it was already there, this is just a precaution
 	
 	//add your stuff here
 	var el_btn_contents = el_action_bar.getElementsByClassName('yt-uix-button-content');
-	if (!el_btn_contents) { console.warn('no buttons found'); return false; }
+	if (!el_btn_contents) { console.warn('no buttons found'); return 0; }
 
 	for (var i=0; i<el_btn_contents.length; i++) {
 	  if (el_btn_contents[i].textContent == 'Share ') {
@@ -34,7 +43,7 @@ function addDiv(theDoc) {
 		break;
 	  }
 	}
-	if (!el_share_btn_contents) { console.warn('no share button contents found'); return false; }
+	if (!el_share_btn_contents) { console.warn('no share button contents found'); return 0; }
 
 	var el_share_span = el_share_btn_contents;
 	for (var i=0; i<5; i++) {
@@ -44,7 +53,7 @@ function addDiv(theDoc) {
 		break;
 	  }
 	}
-	if (el_share_span.tagName != 'SPAN') { console.warn('no share button found'); return false; }
+	if (el_share_span.tagName != 'SPAN') { console.warn('no share button found'); return 0; }
 
 	console.log('FOUND:' + el_share_span.innerHTML);
 
@@ -63,7 +72,7 @@ function addDiv(theDoc) {
 	el_lor_content.textContent = 'Repeat '
 	el_action_bar.insertBefore(el_lor_span, el_share_span.nextSibling);
 	
-	return true;
+	return 1;
 	//theDoc.documentElement.addEventListener('transitionend', ytMsgReceived, false);
 }
 
@@ -100,7 +109,20 @@ function removeDiv(theDoc, skipChecks) {
 	}
 }
 
+function cuiTransEnd(e) {
+	e.stopPropagation();
+	if (e.target.style.width == '0px') {
+		e.target.setAttribute('hidden', 'true');
+	} else {
+		e.target.removeAttribute('hidden');
+		e.target.style.width = '';
+	}
+}
+
+var cuiShowWidth = 0;
+
 var progListener = {
+/*
     onStateChange: function(aProgress, aRequest, aFlags, aStatus) {
         var arrAFlags = [];
         if (aFlags) {
@@ -144,6 +166,156 @@ var progListener = {
 				tryAddIt();
 			}
 		}
+    }
+    */
+    onLocationChange: function (aProgress, aRequest, aURI, aFlags) {
+    	var aDOMWindow = aProgress.chromeEventHandler.ownerDocument.defaultView;
+    	console.log('aDOMWindow', aDOMWindow);
+    	if (aDOMWindow) {
+    		var cui = aDOMWindow.document.getElementById('loryvr_cui');
+			cui.addEventListener('transitionend', cuiTransEnd, false);
+    		console.log('cui:', cui);
+	    	if (/youtube\.com.*?watch/i.test(aURI.spec) || /about\:customizing/i.test(aURI.spec)) {
+	    		//show button
+	    		//cui.setAttribute('loryvr_show', 'true');
+				if (cui.parentNode.getAttribute('place') != 'palette' && cui.getAttribute('cui-areatype') != 'menu-panel') {
+					if (cui.style.width != '') {
+						console.log('yes its hidden so show it');
+						cui.removeAttribute('hidden');
+						cui.removeAttribute('disabled');
+						var forceDraw = aDOMWindow.getComputedStyle(cui, '').height; //https://bugzilla.mozilla.org/show_bug.cgi?id=1041292
+						cui.style.width = cuiShowWidth + 'px';
+					} else {
+						console.log('already showing');
+						//its already showing
+					}
+				} else {
+					cui.style.width = '';
+					cui.removeAttribute('hidden');
+					cui.removeAttribute('disabled');
+				}
+	    	} else {
+	    		//hide button
+				if (cui.parentNode.getAttribute('place') != 'palette' && cui.getAttribute('cui-areatype') != 'menu-panel') {
+					if (cui.style.width != '') {
+						//its already hidden
+						console.log('already hiding');
+					} else {
+						if (!cuiShowWidth) {
+							cuiShowWidth = cui.boxObject.width;
+							console.log('set cuiShowWidth', cuiShowWidth);
+						}
+						console.log('its showing so lets hide it');
+						cui.style.width = cuiShowWidth + 'px';
+						var forceDraw = aDOMWindow.getComputedStyle(cui, '').height; //https://bugzilla.mozilla.org/show_bug.cgi?id=1041292
+						cui.style.width = 0;
+						//cui.removeAttribute('loryvr_show');
+					}
+				} else {
+					//make sure its showing
+					cui.style.width = '';
+					cui.removeAttribute('hidden');
+					cui.setAttribute('disabled', 'true');
+				}
+	    	}
+    	}
+    	/*
+        var notes = {};
+    	try {
+    		notes['aProgress.currentDocumentChannel.name'] = aProgress.currentDocumentChannel.name;
+    	} catch(ignore) {}
+    	try {
+    		notes['aRequest.name'] = aRequest.name;
+    	} catch(ignore) {}
+    	try {
+    		notes['aURI.spec'] = aURI.spec;
+    	} catch(ignore) {}
+    	try {
+    		notes.chromeEventHandler = aProgress.chromeEventHandler;
+    	} catch(ignore) {}
+    	try {
+    		notes.DOMWin = aProgress.DOMWindow;
+    	} catch(ignore) {}
+    	try {
+    		notes.pBar = aProgress.DOMWindow.document.getElementById('progress');
+    	} catch(ignore) {}
+    	try {
+    		notes.pBarTop = aProgress.DOMWindow.top.document.getElementById('progress');
+    	} catch(ignore) {}
+    	try {
+    		notes.pBarChrome = aProgress.chromeEventHandler.contentDocument.getElementById('progress');
+    	} catch(ignore) {}
+    	try {
+    		notes.chromeEventHandler.ownerDocument.defaultView.setTimeout(function() {
+    			console.log({html:aProgress.chromeEventHandler.contentDocument.body.innerHTML})
+    		}, 50)
+    	} catch(ignore) {}
+    	
+    	if (aRequest && aRequest.name.indexOf('youtube.com') > -1) {
+    		
+    	} else {
+    		//return;
+    	}
+        var arrAFlags = [];
+        if (aFlags) {
+            for (var f in Ci.nsIWebProgressListener) {
+                if (aFlags & Ci.nsIWebProgressListener[f]) {
+                    arrAFlags.push(f);
+                }
+            }
+        }
+        if (!aRequest && aFlags == 0) {
+            notes.switch = 'just tab switch';
+            //console.warn('just a tab switch so aborting');
+            //return;
+        }
+        if (aFlags & Ci.nsIWebProgressListener.LOCATION_CHANGE_SAME_DOCUMENT) {
+            notes.anchor = 'anchor clicked!';
+        }
+        var domWin = aProgress.DOMWindow;
+        var domDoc = domWin.document;
+        if(!domDoc) {
+            notes.docWarn = 'document not loaded yet';
+        }
+	console.log('onLocationChange', {aProgress: aProgress, aRequest: aRequest, aURI:aURI, aFlags:arrAFlags, notes:notes});
+	*/
+	/*
+        if (domDoc) {
+	        if (aURI && /youtube\.com/i.test(aURI.spec)) {
+	        	var contentWindow = aProgress.DOMWindow
+	        	//check for progress bar
+	        	var pBar = contentWindow.document.getElementById('progress');
+	        	if (pBar) {
+	        		notes.push({'pBar is there':pBar});
+	        	}
+			var t = 0; //try
+			var maxTry = 10;
+			var tryAddIt = function() {
+				contentWindow.setTimeout(function() {
+					var ret = addDiv(contentWindow.document);
+					if (ret === 1) {
+						console.log('found and inserted');
+					} else {
+						//returns 0 or false if not inserted
+						if (ret === -1) {
+							console.warn('not incrmenting t as ret === -1');
+						} else {
+							t++;
+						}
+						if (t < maxTry) {
+							console.log('not found yet will wait and try again');
+							tryAddIt();
+						} else {
+							console.log('maxTry reached so determined this page does not have it');
+							console.info(contentWindow.location.href, contentWindow.document.documentElement.innerHTML);
+						}
+					}
+				}, 100);
+			}
+			tryAddIt();
+	        }
+        }
+        */
     }
 }
 
@@ -202,22 +374,26 @@ var windowListener = {
 			return;
 		}
 		if (aDOMWindow.gBrowser) {
+			var domWinUtils = aDOMWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
+			domWinUtils.loadSheet(uri_cuiCss, domWinUtils.AUTHOR_SHEET); //0 == agent_sheet 1 == user_sheet 2 == author_sheet
 			aDOMWindow.gBrowser.addProgressListener(progListener);
 			if (aDOMWindow.gBrowser.tabContainer) {
 				//has tabContainer
 				//start - go through all tabs in this window we just added to
+				/*
 				var tabs = aDOMWindow.gBrowser.tabContainer.childNodes;
 				for (var i = 0; i < tabs.length; i++) {
 					console.log('DOING tab: ' + i);
 					var tabBrowser = tabs[i].linkedBrowser;
 					var win = tabBrowser.contentWindow;
-					loadIntoContentWindowAndItsFrames(win);
+					//loadIntoContentWindowAndItsFrames(win);
 				}
+				*/
 				//end - go through all tabs in this window we just added to
 			} else {
 				//does not have tabContainer
 				var win = aDOMWindow.gBrowser.contentWindow;
-				loadIntoContentWindowAndItsFrames(win);
+				//loadIntoContentWindowAndItsFrames(win);
 			}
 		} else {
 			//window does not have gBrowser
@@ -228,22 +404,26 @@ var windowListener = {
 			return;
 		}
 		if (aDOMWindow.gBrowser) {
+			var domWinUtils = aDOMWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
+			domWinUtils.removeSheet(uri_cuiCss, domWinUtils.AUTHOR_SHEET); //0 == agent_sheet 1 == user_sheet 2 == author_sheet
 			aDOMWindow.gBrowser.removeProgressListener(progListener);
 			if (aDOMWindow.gBrowser.tabContainer) {
 				//has tabContainer
 				//start - go through all tabs in this window we just added to
+				/*
 				var tabs = aDOMWindow.gBrowser.tabContainer.childNodes;
 				for (var i = 0; i < tabs.length; i++) {
 					console.log('DOING tab: ' + i);
 					var tabBrowser = tabs[i].linkedBrowser;
 					var win = tabBrowser.contentWindow;
-					unloadFromContentWindowAndItsFrames(win);
+					//unloadFromContentWindowAndItsFrames(win);
 				}
+				*/
 				//end - go through all tabs in this window we just added to
 			} else {
 				//does not have tabContainer
 				var win = aDOMWindow.gBrowser.contentWindow;
-				unloadFromContentWindowAndItsFrames(win);
+				//unloadFromContentWindowAndItsFrames(win);
 			}
 		} else {
 			//window does not have gBrowser
@@ -299,11 +479,24 @@ function unloadFromContentWindowAndItsFrames(theWin) {
 }
 
 function startup(aData, aReason) {
+	
+	CustomizableUI.createWidget(
+	  { id : 'loryvr_cui',
+	    defaultArea : CustomizableUI.AREA_NAVBAR,
+	    label : 'Repeat Video',
+	    tooltiptext : 'Repeat at ListenOnRepeat.com',
+	    onCommand : function(aEvent) {
+	      let win = aEvent.target.ownerDocument.defaultView;
+	 	win.gBrowser.selectedTab.linkedBrowser.contentWindow.location = win.gBrowser.selectedTab.linkedBrowser.contentWindow.location.href.replace('youtube.com', 'listenonrepeat.com');
+	    }
+	  });
+	
 	windowListener.register();
 }
 
 function shutdown(aData, aReason) {
 	if (aReason == APP_SHUTDOWN) return;
+	CustomizableUI.destroyWidget('loryvr_cui');
 	windowListener.unregister();
 }
 
