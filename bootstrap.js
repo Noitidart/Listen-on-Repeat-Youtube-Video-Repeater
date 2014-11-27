@@ -478,7 +478,24 @@ function unloadFromContentWindowAndItsFrames(theWin) {
 	}
 }
 
+var installTooltipShown = false;
+function showInstallTooltip(e, win) {
+	if (!installTooltipShown) {
+		if (!win) {
+			var win = e.target.ownerDocument.defaultView;
+		}
+		var doc = win.document;
+		var myWidget = doc.getElementById('loryvr_cui');
+		
+	}
+}
 function startup(aData, aReason) {
+	
+	let DOMWindows = Services.wm.getEnumerator(null);
+	while (DOMWindows.hasMoreElements()) {
+		let aDOMWindow = DOMWindows.getNext();
+		aDOMWindow.addEventListener('activate', showInstallTooltip, false);
+	}
 	
 	CustomizableUI.createWidget(
 	  { id : 'loryvr_cui',
@@ -488,6 +505,17 @@ function startup(aData, aReason) {
 	    onCommand : function(aEvent) {
 	      let win = aEvent.target.ownerDocument.defaultView;
 	 	win.gBrowser.selectedTab.linkedBrowser.contentWindow.location = win.gBrowser.selectedTab.linkedBrowser.contentWindow.location.href.replace('youtube.com', 'listenonrepeat.com');
+	    },
+	    onCreated: function(aNode) { //first arg is the button itself, the widget so to speak
+	    	//console.log('onCreated', 'aNode:', aNode);
+	    	if (aReason == ADDON_INSTALL) {
+	    		if (!installTooltipShown) {
+	    			var aDOMWindow = aNode.ownerDocument.defaultView;
+	    			var 
+	    		}
+		    	//check if this window is the focused window, if it is then show tooltip about, mark as shown
+		    	//if this is not the focused window, then dont show
+	    	}
 	    }
 	  });
 	
