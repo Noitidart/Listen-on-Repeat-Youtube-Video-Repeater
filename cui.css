@@ -2,8 +2,6 @@
 
   #loryvr_cui {
     list-style-image: url('chrome://listen-on-repeat-youtube-video-repeater/content/icon16.png');
-	transition: width 200ms;
-	overflow: hidden;
   }
 
   #loryvr_cui[cui-areatype="menu-panel"],
