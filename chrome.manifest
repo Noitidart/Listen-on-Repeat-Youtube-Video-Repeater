@@ -1,1 +1,3 @@
 content listen-on-repeat-youtube-video-repeater ./ contentaccessible=true
+locale listen-on-repeat-youtube-video-repeater en-US locale/en-US/
+locale listen-on-repeat-youtube-video-repeater en-GB locale/en-GB/

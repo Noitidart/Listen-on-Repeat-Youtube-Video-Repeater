@@ -3,13 +3,18 @@ const self = {
 	name: 'Listen on Repeat Youtube Video Repeater',
 	id: 'Listen-on-Repeat-Youtube-Video-Repeater@jetpack',
 	path: {
-		chrome: 'chrome://listen-on-repeat-youtube-video-repeater/content/'
+		chrome: 'chrome://listen-on-repeat-youtube-video-repeater/content/',
+		locale: 'chrome://listen-on-repeat-youtube-video-repeater/locale/'
 	},
 	aData: 0
 };
 
 Cu.import('resource://gre/modules/Services.jsm');
 Cu.import('resource:///modules/CustomizableUI.jsm');
+
+const myServices = {};
+Cu.import('resource://gre/modules/XPCOMUtils.jsm');
+XPCOMUtils.defineLazyGetter(myServices, 'stringBundle', function () { return Services.strings.createBundle(self.path.locale + 'bootstrap.properties?' + Math.random()) /* Randomize URI to work around bug 719376 */ });
 
 const uri_cuiCss =  Services.io.newURI(self.path.chrome + 'cui.css', null, null);
 const ignoreFrames = false;
@@ -483,11 +488,11 @@ function startup(aData, aReason) {
 	CustomizableUI.createWidget(
 	  { id : 'loryvr_cui',
 	    defaultArea : CustomizableUI.AREA_NAVBAR,
-	    label : 'Repeat Video',
-	    tooltiptext : 'Repeat at ListenOnRepeat.com',
+	    label : myServices.stringBundle.GetStringFromName('repeat_video'),
+	    tooltiptext : myServices.stringBundle.GetStringFromName('repeat_at_listenonrepeat_com'),
 	    onCommand : function(aEvent) {
-	      let win = aEvent.target.ownerDocument.defaultView;
-	 	win.gBrowser.selectedTab.linkedBrowser.contentWindow.location = win.gBrowser.selectedTab.linkedBrowser.contentWindow.location.href.replace('youtube.com', 'listenonrepeat.com');
+			let win = aEvent.target.ownerDocument.defaultView;
+			win.gBrowser.selectedTab.linkedBrowser.contentWindow.location = win.gBrowser.selectedTab.linkedBrowser.contentWindow.location.href.replace('youtube.com', 'listenonrepeat.com');
 	    }
 	  });
 	
